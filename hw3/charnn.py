@@ -179,15 +179,15 @@ def generate_from_model(model, start_sequence, n_chars, char_maps, T):
     #  See torch.no_grad().
     # ====== YOUR CODE: ======
     with torch.no_grad():
-        start_sequence_matrix = chars_to_onehot(start_sequence, char_to_idx)
-        y, hidden_state = model(start_sequence_matrix.unsqueeze(0))
-        y = hot_softmax(y[0, -1, :], -1, T)
+        start_sequence_matrix = chars_to_onehot(start_sequence, char_to_idx).unsqueeze(0).type(torch.float).to(device)
+        y, hidden_state = model(start_sequence_matrix)
+        y = hot_softmax(y.squeeze(0)[-1, :], -1, T)
         y = torch.multinomial(y, 1)
         y = idx_to_char[y.item()]
         out_text += y
         while len(out_text) < n_chars:
-            y_matrix = chars_to_onehot(y, char_to_idx)
-            y, hidden_state = model(y_matrix.unsqueeze(0))
+            y_matrix = chars_to_onehot(y, char_to_idx).unsqueeze(0).type(torch.float).to(device)
+            y, hidden_state = model(y_matrix, hidden_state)
             y = hot_softmax(y[0, -1, :], -1, T)
             y = torch.multinomial(y, 1)
             y = idx_to_char[y.item()]
@@ -224,16 +224,15 @@ class SequenceBatchSampler(torch.utils.data.Sampler):
         #  you can drop it.
         idx = None  # idx should be a 1-d list of indices.
         # ====== YOUR CODE: ======
-        jump = (len(self.dataset) // self.batch_size)
-        relevant_dataset_len = jump * self.batch_size
-        idx = []
-        for i in range(jump):
-            idx.extend([x for x in range(i, relevant_dataset_len, jump)])
+        relevant_size = (len(self.dataset)//self.batch_size) * self.batch_size
+        idx = torch.arange(relevant_size)
+        idx = idx.reshape((self.batch_size, -1)).transpose(0, 1).flatten()
         # ========================
         return iter(idx)
 
     def __len__(self):
         return len(self.dataset)
+
 
 
 class MultilayerGRU(nn.Module):
@@ -278,25 +277,24 @@ class MultilayerGRU(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
         self.sigmoid = nn.Sigmoid()
         self.tanh = nn.Tanh()
+        layer_in_dim = self.in_dim
         for layer in range(n_layers):
             layer_dict = dict()
-            layer_dict['w_hz_bz'] = nn.Linear(in_features=h_dim, out_features=h_dim, bias=True)
-            layer_dict['w_hr_br'] = nn.Linear(in_features=h_dim, out_features=h_dim, bias=True)
-            layer_dict['w_hg_bg'] = nn.Linear(in_features=h_dim, out_features=h_dim, bias=True)
-            if layer == 0:
-                layer_dict['w_xz'] = nn.Linear(in_features=in_dim, out_features=h_dim, bias=False)
-                layer_dict['w_xr'] = nn.Linear(in_features=in_dim, out_features=h_dim, bias=False)
-                layer_dict['w_xg'] = nn.Linear(in_features=in_dim, out_features=h_dim, bias=False)
-            else:
-                layer_dict['w_xz'] = nn.Linear(in_features=h_dim, out_features=h_dim, bias=False)
-                layer_dict['w_xr'] = nn.Linear(in_features=h_dim, out_features=h_dim, bias=False)
-                layer_dict['w_xg'] = nn.Linear(in_features=h_dim, out_features=h_dim, bias=False)
+            layer_dict['hz'] = nn.Linear(in_features=self.h_dim, out_features=self.h_dim, bias=True)
+            layer_dict['hr'] = nn.Linear(in_features=self.h_dim, out_features=self.h_dim, bias=True)
+            layer_dict['hg'] = nn.Linear(in_features=self.h_dim, out_features=self.h_dim, bias=True)
+            layer_dict['xz'] = nn.Linear(in_features=layer_in_dim, out_features=self.h_dim, bias=False)
+            layer_dict['xr'] = nn.Linear(in_features=layer_in_dim, out_features=self.h_dim, bias=False)
+            layer_dict['xg'] = nn.Linear(in_features=layer_in_dim, out_features=self.h_dim, bias=False)
+
             self.layer_params.append(layer_dict)
             for key, val in layer_dict.items():
                 self.add_module(name=f"layer{layer}_"+key, module=val)
-        w_hy_by = nn.Linear(in_features=h_dim, out_features=out_dim, bias=True)
-        self.add_module(name="w_hy_by", module=w_hy_by)
-        self.layer_params.append(w_hy_by)
+            layer_in_dim = self.h_dim
+
+        hy = nn.Linear(in_features=layer_in_dim, out_features=self.out_dim, bias=True)
+        self.layer_params.append(hy)
+        self.add_module(name="hy", module=hy)
 
         # ========================
 
@@ -335,25 +333,26 @@ class MultilayerGRU(nn.Module):
         #  Tip: You can use torch.stack() to combine multiple tensors into a
         #  single tensor in a differentiable manner.
         # ====== YOUR CODE: ======
-        hidden_state = torch.zeros(size=(batch_size, self.n_layers, self.h_dim))
-        layer_output = torch.zeros(size=(batch_size, seq_len, self.h_dim))
-        for k, layer in enumerate(self.layer_params):
-            if isinstance(layer, dict):
-                h_k_t = layer_states[k]
-                for t in range(seq_len):
-                    if k == 0:
-                        curr_x = layer_input[:, t, :].float()
-                    else:
-                        curr_x = layer_input[:, t, :]
-                    z_k_t = self.sigmoid(layer['w_xz'](curr_x) + layer['w_hz_bz'](h_k_t))
-                    r_k_t = self.sigmoid(layer['w_xr'](curr_x) + layer['w_hr_br'](h_k_t))
-                    g_k_t = self.tanh(layer['w_xg'](curr_x) + layer['w_hg_bg'](r_k_t*h_k_t))
-                    h_k_t = z_k_t * h_k_t + (1-z_k_t) * g_k_t
-                    layer_output[:, t, :] = h_k_t
-                hidden_state[:, k, :] = h_k_t
-                layer_input = self.dropout(layer_output)
-            else:
-                layer_output = layer(layer_output)
 
+        layer_output = []
+        for t in range(seq_len):
+            prev_hidden_state = torch.stack(layer_states, dim=1)
+            layer_states = []
+            curr_x = input[:, t, :]
+
+            for k, layer in enumerate(self.layer_params):
+                if isinstance(layer, dict):
+                    h_k = prev_hidden_state[:, k, :]
+                    z = self.sigmoid(layer['xz'](curr_x) + layer['hz'](h_k))
+                    r = self.sigmoid(layer['xr'](curr_x) + layer['hr'](h_k))
+                    g = self.tanh(layer['xg'](curr_x) + layer['hg'](r * h_k))
+                    h = z * h_k + (1 - z) * g
+                    layer_states.append(h.clone())
+                    curr_x = self.dropout(h)
+                else:
+                    layer_output.append(layer(curr_x))
+        hidden_state = torch.stack(layer_states, dim=1)
+        layer_output = torch.stack(layer_output, dim=1)
         # ========================
+
         return layer_output, hidden_state
