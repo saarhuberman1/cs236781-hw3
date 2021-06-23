@@ -324,7 +324,20 @@ class VAETrainer(Trainer):
         x = x.to(self.device)  # Image batch (N,C,H,W)
         # TODO: Train a VAE on one batch.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+
+        # Forward pass
+        decoded_z, mu, log_sigma2 = self.model(x)
+
+        # Backward pass
+        self.optimizer.zero_grad()
+        loss, data_loss, _ = self.loss_fn(x, decoded_z, mu, log_sigma2)
+        loss.backward()        # update the loss gradients
+
+        # Weight updates
+        self.optimizer.step()
+        # print(loss)
+        # print(data_loss)
+        # raise NotImplementedError()
         # ========================
 
         return BatchResult(loss.item(), 1 / data_loss.item())

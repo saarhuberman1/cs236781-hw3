@@ -174,9 +174,10 @@ class VAE(nn.Module):
             #    Instead of sampling from N(psi(z), sigma2 I), we'll just take
             #    the mean, i.e. psi(z).
             # ====== YOUR CODE: ======
-            raise NotImplementedError()
-            # ========================
+            samples = self.decode(torch.randn(size=(n, self.z_dim), device=device))
+            # raise NotImplementedError()
 
+            # ========================
         # Detach and move to CPU for display purposes
         samples = [s.detach().cpu() for s in samples]
         return samples
@@ -209,7 +210,7 @@ def vae_loss(x, xr, z_mu, z_log_sigma2, x_sigma2):
     # ====== YOUR CODE: ======
 
     #TODO - MARWA : double check this
-
+    # print("calc loss")
     x_dim = x.shape[1] * x.shape[2] * x.shape[3]
     # print(x_dim)
     data_loss = ((x - xr).view(x.shape[0], -1).norm(dim=1) ** 2)
