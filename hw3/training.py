@@ -64,6 +64,7 @@ class Trainer(abc.ABC):
         train_loss, train_acc, test_loss, test_acc = [], [], [], []
 
         best_acc = None
+        best_test_loss = None
         epochs_without_improvement = 0
 
         checkpoint_filename = None
@@ -93,7 +94,28 @@ class Trainer(abc.ABC):
             #  - Implement early stopping. This is a very useful and
             #    simple regularization technique that is highly recommended.
             # ====== YOUR CODE: ======
-            raise NotImplementedError()
+            actual_num_epochs += 1
+            train_result = self.train_epoch(dl_train, verbose=verbose, **kw)
+            test_result = self.train_epoch(dl_test, verbose=verbose, **kw)
+            train_loss.extend(train_result.losses)
+            train_acc.append(train_result.accuracy)
+            test_loss.extend(test_result.losses)
+            test_acc.append(test_result.accuracy)
+
+            if best_acc is None or test_result.accuracy > best_acc:
+                save_checkpoint = True
+                best_acc = test_result.accuracy
+
+            current_test_loss = torch.mean(torch.stack(test_result.losses)) if isinstance(test_result.losses[0], torch.Tensor) \
+                else sum(test_result.losses) / len(test_result.losses)
+            if (best_test_loss is None) or (current_test_loss < best_test_loss):
+                best_test_loss = current_test_loss
+                epochs_without_improvement = 0
+            else:
+                epochs_without_improvement += 1
+            if (early_stopping is not None) and (epochs_without_improvement == early_stopping):
+                break
+
             # ========================
 
             # Save model checkpoint if requested
@@ -228,7 +250,7 @@ class RNNTrainer(Trainer):
     def test_epoch(self, dl_test: DataLoader, **kw):
         # TODO: Implement modifications to the base method, if needed.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        self.hidden_state = None
         # ========================
         return super().test_epoch(dl_test, **kw)
 
@@ -283,7 +305,14 @@ class RNNTrainer(Trainer):
             #  - Loss calculation
             #  - Calculate number of correct predictions
             # ====== YOUR CODE: ======
-            raise NotImplementedError()
+            with torch.no_grad():
+                y_pred, hidden_state = self.model(x, self.hidden_state)
+                loss = 0
+                for i in range(seq_len):
+                    loss += self.loss_fn(y_pred[:, i, :], y[:, i])
+                y_pred = torch.argmax(y_pred, dim=-1)
+                num_correct = torch.sum(y_pred == y).float()
+                self.hidden_state = hidden_state.detach()
             # ========================
 
         return BatchResult(loss.item(), num_correct.item() / seq_len)
