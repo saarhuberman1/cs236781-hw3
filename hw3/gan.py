@@ -5,7 +5,7 @@ from torch import Tensor
 from typing import Callable
 from torch.utils.data import DataLoader
 from torch.optim.optimizer import Optimizer
-
+import numpy as np
 
 class Discriminator(nn.Module):
     def __init__(self, in_size):
@@ -20,8 +20,28 @@ class Discriminator(nn.Module):
         #  You can then use either an affine layer or another conv layer to
         #  flatten the features.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        modules = []
+        in_channels, hight, width = in_size
+        channels = [in_channels, 64, 128, 256]
+        for i in range(len(channels)-1):
+            modules.append(nn.Conv2d(in_channels=channels[i],
+                                     out_channels=channels[i+1],
+                                     kernel_size=(5, 5),
+                                     stride=(2, 2),
+                                     padding=(2, 2))) # TODO - Marwa: should I use different padding
+            modules.append(nn.BatchNorm2d(num_features=channels[i+1], eps=1e-6, momentum=0.9))
+            modules.append(nn.ReLU())
+
+        self.cnn = nn.Sequential(*modules)
+        n_cnn_features = self._calc_num_cnn_features(in_size)
+        self.fc = nn.Linear(n_cnn_features, 1, bias=True)
         # ========================
+
+    def _calc_num_cnn_features(self, in_shape):
+        with torch.no_grad():
+            x = torch.zeros(1, *in_shape)
+            out_shape = self.cnn(x).shape
+        return int(np.prod(out_shape))
 
     def forward(self, x):
         """
@@ -33,7 +53,9 @@ class Discriminator(nn.Module):
         #  No need to apply sigmoid to obtain probability - we'll combine it
         #  with the loss due to improved numerical stability.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        features = self.cnn(x)
+        features = features.view(x.shape[0], -1)
+        y = self.fc(features)
         # ========================
         return y
 

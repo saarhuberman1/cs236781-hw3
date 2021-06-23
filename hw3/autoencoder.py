@@ -19,7 +19,24 @@ class EncoderCNN(nn.Module):
         #  use pooling or only strides, use any activation functions,
         #  use BN or Dropout, etc.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+
+        # based on this paper https://arxiv.org/pdf/1512.09300.pdf
+        channels = [in_channels, 64, 128, 256]
+
+        for i in range(len(channels)-1):
+            modules.append(nn.Conv2d(in_channels=channels[i],
+                                     out_channels=channels[i+1],
+                                     kernel_size=(5, 5),
+                                     stride=(2, 2),
+                                     padding=(2, 2))) # TODO - Marwa: should I use different padding
+            modules.append(nn.BatchNorm2d(num_features=channels[i+1], eps=1e-6, momentum=0.9))
+            modules.append(nn.ReLU())
+
+        modules.append(nn.Conv2d(in_channels=channels[-1],
+                                 out_channels=out_channels,
+                                 kernel_size=(5, 5),
+                                 padding=(2, 2)))
+        # raise NotImplementedError()
         # ========================
         self.cnn = nn.Sequential(*modules)
 
@@ -42,7 +59,24 @@ class DecoderCNN(nn.Module):
         #  output should be a batch of images, with same dimensions as the
         #  inputs to the Encoder were.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        channels = [256, 128, 64, out_channels]
+
+        modules.append(nn.ConvTranspose2d(in_channels=in_channels,
+                                          out_channels=channels[0],
+                                          kernel_size=(5, 5),
+                                          padding=(2,2)
+                                          ))
+        for i in range(len(channels) - 1):
+            modules.append(nn.BatchNorm2d(num_features=channels[i], eps=1e-6, momentum=0.9))
+            modules.append(nn.ReLU())
+            modules.append(nn.ConvTranspose2d(in_channels=channels[i],
+                                              out_channels=channels[i + 1],
+                                              kernel_size=(5, 5),
+                                              stride=(2, 2),
+                                              padding=(2, 2),
+                                              output_padding=(1, 1)))
+
+
         # ========================
         self.cnn = nn.Sequential(*modules)
 
@@ -70,7 +104,10 @@ class VAE(nn.Module):
 
         # TODO: Add more layers as needed for encode() and decode().
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        self.calc_mean = nn.Linear(in_features=n_features, out_features=z_dim)
+        self.calc_log_var = nn.Linear(in_features=n_features, out_features=z_dim)
+        self.reverse_transformation = nn.Linear(in_features=z_dim, out_features=n_features)
+        # raise NotImplementedError()
         # ========================
 
     def _check_features(self, in_size):
@@ -91,7 +128,19 @@ class VAE(nn.Module):
         #     log_sigma2 (mean and log variance) of q(Z|x).
         #  2. Apply the reparametrization trick to obtain z.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        h = self.features_encoder(x)
+        h = torch.reshape(h, (x.shape[0], -1))
+        # print(h.shape)
+        mu = self.calc_mean(h)
+        # print(mu.shape)
+        log_sigma2 = self.calc_log_var(h)
+        sigma = torch.exp(log_sigma2 * 0.5)
+        # print(sigma.shape)
+        reparametrization_trick = torch.randn(mu.size())
+        # print(reparametrization_trick.shape)
+
+        z = mu + reparametrization_trick * sigma
+        # raise NotImplementedError()
         # ========================
 
         return z, mu, log_sigma2
@@ -102,7 +151,11 @@ class VAE(nn.Module):
         #  1. Convert latent z to features h with a linear layer.
         #  2. Apply features decoder.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        h_rev = self.reverse_transformation(z)
+        h_rev = torch.reshape(h_rev, (-1, *self.features_shape))
+        # print(h_rev.shape)
+        x_rec = self.features_decoder(h_rev)
+        # raise NotImplementedError()
         # ========================
 
         # Scale to [-1, 1] (same dynamic range as original images).
@@ -154,7 +207,29 @@ def vae_loss(x, xr, z_mu, z_log_sigma2, x_sigma2):
     #  1. The covariance matrix of the posterior is diagonal.
     #  2. You need to average over the batch dimension.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+
+    #TODO - MARWA : double check this
+
+    x_dim = x.shape[1] * x.shape[2] * x.shape[3]
+    # print(x_dim)
+    data_loss = ((x - xr).view(x.shape[0], -1).norm(dim=1) ** 2)
+    data_loss = data_loss.mean() / (x_sigma2 * x_dim)
+    # print(data_loss)
+
+    d_z = z_mu.shape[1]
+    # print(d_z)
+    trace = z_log_sigma2.exp().sum(dim=1)
+    # print(trace)
+    mu_norm = z_mu.norm(dim=1) ** 2
+    # print(mu_norm)
+    log_det = -z_log_sigma2.sum(dim=1)
+    # print(log_det)
+
+    kldiv_losses_vector = trace + mu_norm + log_det
+    kldiv_loss = kldiv_losses_vector.mean() - d_z
+
+    loss = data_loss + kldiv_loss
+    # print(loss)
     # ========================
 
     return loss, data_loss, kldiv_loss
