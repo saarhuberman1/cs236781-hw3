@@ -28,13 +28,13 @@ class Discriminator(nn.Module):
                                      out_channels=channels[i+1],
                                      kernel_size=(5, 5),
                                      stride=(2, 2),
-                                     padding=(2, 2))) # TODO - Marwa: should I use different padding
+                                     padding=(2, 2)))
             modules.append(nn.BatchNorm2d(num_features=channels[i+1], eps=1e-6, momentum=0.9))
             modules.append(nn.ReLU())
 
         self.cnn = nn.Sequential(*modules)
         n_cnn_features = self._calc_num_cnn_features(in_size)
-        self.fc = nn.Linear(n_cnn_features, 1, bias=True)
+        self.fc = nn.Linear(n_cnn_features, 1, bias=True) # TODO - what is the 1 here?
         # ========================
 
     def _calc_num_cnn_features(self, in_shape):
@@ -71,12 +71,54 @@ class Generator(nn.Module):
         super().__init__()
         self.z_dim = z_dim
 
+
         # TODO: Create the generator model layers.
         #  To combine image features you can use the DecoderCNN from the VAE
         #  section or implement something new.
         #  You can assume a fixed image size.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        # assumig image size is constant =(64,64)
+        self.h = self.w = 4
+
+        # sizes after using 5 ConvTranspose2d layers with kernel=5, stride=1, padding=2 and last layer output padding =1
+        for i in range(5):
+            self.h = self.h * 2 + 1
+        self.h += 1 # for output padding on last layer
+            # self.h = (self.h + 2*2 - 5)//2 + 1  # 2=padding, 5=kernel
+        self.w = self.h
+
+        self.feature_map_size = featuremap_size
+        self.out_channels = out_channels
+
+        self.in_channels = 1024
+        self.fc = nn.Linear(z_dim, featuremap_size*featuremap_size*self.in_channels, bias=False)
+
+        # from hw3.autoencoder import DecoderCNN
+
+        channels = [512, 256, 128, 64, out_channels]
+        modules = []
+        modules.append(nn.ConvTranspose2d(in_channels=self.in_channels,
+                                          out_channels=channels[0],
+                                          kernel_size=(5, 5),
+                                          padding=(2,2)
+                                          ))
+        for i in range(len(channels) - 1):
+            modules.append(nn.BatchNorm2d(num_features=channels[i], eps=1e-6, momentum=0.9))
+            modules.append(nn.ReLU())
+            modules.append(nn.ConvTranspose2d(in_channels=channels[i],
+                                              out_channels=channels[i + 1],
+                                              kernel_size=(5, 5),
+                                              stride=(2, 2),
+                                              padding=(2, 2),
+                                              output_padding=(1, 1)))
+        self.generator = nn.Sequential(*modules)
+
+
+        # self.generator = DecoderCNN(in_channels=self.in_channels, out_channels=out_channels).cnn
+
+
+
+        # raise NotImplementedError()
         # ========================
 
     def sample(self, n, with_grad=False):
@@ -93,7 +135,16 @@ class Generator(nn.Module):
         #  Generate n latent space samples and return their reconstructions.
         #  Don't use a loop.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        latent_space_samples = torch.randn(size=(n, self.z_dim), device=device)
+        if with_grad:
+            samples = self.forward(latent_space_samples)
+            # print(samples.shape)
+        else:
+            with torch.no_grad():
+                samples = self.forward(latent_space_samples)
+                # print(samples.shape)
+
+        # raise NotImplementedError()
         # ========================
         return samples
 
@@ -107,7 +158,13 @@ class Generator(nn.Module):
         #  Don't forget to make sure the output instances have the same
         #  dynamic range as the original (real) images.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        features = self.fc(z)
+        # print(features.shape)
+        # features = torch.reshape(features, [z.shape[0], self.in_channels, self.h, self.w])
+        features = torch.reshape(features, [z.shape[0], self.in_channels, self.feature_map_size, self.feature_map_size])
+        # print(features.shape)
+        x = self.generator(features)
+        # raise NotImplementedError()
         # ========================
         return x
 
@@ -187,7 +244,16 @@ def train_batch(
     #  2. Calculate discriminator loss
     #  3. Update discriminator parameters
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    dsc_optimizer.zero_grad()
+    generated_data = gen_model.sample(x_data.shape[0], with_grad=False)
+    generated_data_score = dsc_model(generated_data)
+
+    y_data_score = dsc_model(x_data)
+    dsc_loss = dsc_loss_fn(y_data_score, generated_data_score)  # TODO - MARWA - not sure about the label
+    dsc_loss.backward()
+    dsc_optimizer.step()
+
+    # raise NotImplementedError()
     # ========================
 
     # TODO: Generator update
@@ -195,7 +261,16 @@ def train_batch(
     #  2. Calculate generator loss
     #  3. Update generator parameters
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+
+    gen_optimizer.zero_grad()
+
+    discriminator_data = dsc_model(gen_model.sample(x_data.shape[0], with_grad=True))
+
+    gen_loss = gen_loss_fn(discriminator_data)
+    gen_loss.backward()
+    gen_optimizer.step()
+
+    # raise NotImplementedError()
     # ========================
 
     return dsc_loss.item(), gen_loss.item()
@@ -218,8 +293,14 @@ def save_checkpoint(gen_model, dsc_losses, gen_losses, checkpoint_file):
     #  You should decide what logic to use for deciding when to save.
     #  If you save, set saved to True.
     # ====== YOUR CODE: ======
-
-    raise NotImplementedError()
+    # saved_state = dict(
+    #         best_acc=best_acc,
+    #         ewi=epochs_without_improvement,
+    #         model_state=self.model.state_dict(),
+    # )
+    # torch.save(saved_state, checkpoint_file)
+    # print(f"*** Saved checkpoint {checkpoint_file} " )
+    # raise NotImplementedError()
     # ========================
 
     return saved
