@@ -77,6 +77,9 @@ class Generator(nn.Module):
         #  section or implement something new.
         #  You can assume a fixed image size.
         # ====== YOUR CODE: ======
+        self.prev_data_loss = None
+        self.prev_KL_loss = None
+
         # assumig image size is constant =(64,64)
         self.h = self.w = 4
 
@@ -293,13 +296,17 @@ def save_checkpoint(gen_model, dsc_losses, gen_losses, checkpoint_file):
     #  You should decide what logic to use for deciding when to save.
     #  If you save, set saved to True.
     # ====== YOUR CODE: ======
-    # saved_state = dict(
-    #         best_acc=best_acc,
-    #         ewi=epochs_without_improvement,
-    #         model_state=self.model.state_dict(),
-    # )
-    # torch.save(saved_state, checkpoint_file)
-    # print(f"*** Saved checkpoint {checkpoint_file} " )
+    def combined_loss(dsc,gen):
+        alpha = 0.5
+        return alpha*dsc + (1-alpha)*gen
+
+    if not gen_model.prev_data_loss or not gen_model.prev_KL_loss or \
+            combined_loss(dsc_losses, gen_losses) < combined_loss(gen_model.prev_data_loss, gen_model.prev_KL_loss):
+        torch.save(gen_model, checkpoint_file)
+        # print(f"*** Saved checkpoint {checkpoint_file} ")
+        saved = True
+    gen_model.prev_data_loss = dsc_losses
+    gen_model.prev_KL_loss = gen_losses
     # raise NotImplementedError()
     # ========================
 
