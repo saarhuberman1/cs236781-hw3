@@ -349,7 +349,9 @@ class VAETrainer(Trainer):
         with torch.no_grad():
             # TODO: Evaluate a VAE on one batch.
             # ====== YOUR CODE: ======
-            raise NotImplementedError()
+            decoded_z, mu, log_sigma2 = self.model(x)
+            loss, data_loss, _ = self.loss_fn(x, decoded_z, mu, log_sigma2)
+            # raise NotImplementedError()
             # ========================
 
         return BatchResult(loss.item(), 1 / data_loss.item())
