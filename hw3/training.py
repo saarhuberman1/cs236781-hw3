@@ -96,7 +96,7 @@ class Trainer(abc.ABC):
             # ====== YOUR CODE: ======
             actual_num_epochs += 1
             train_result = self.train_epoch(dl_train, verbose=verbose, **kw)
-            test_result = self.train_epoch(dl_test, verbose=verbose, **kw)
+            test_result = self.test_epoch(dl_test, verbose=verbose, **kw)
             train_loss.extend(train_result.losses)
             train_acc.append(train_result.accuracy)
             test_loss.extend(test_result.losses)

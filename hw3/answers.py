@@ -39,7 +39,9 @@ def part1_generation_params():
     temperature = 0.0001
     # TODO: Tweak the parameters to generate a literary masterpiece.
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    start_seq = "to be or not to be"
+    temperature = 5e-6
+    # raise NotImplementedError()
     # ========================
     return start_seq, temperature
 
@@ -121,6 +123,9 @@ def part2_vae_hyperparams():
 part2_q1 = r"""
 **Your answer:**
 
+$sigma^2$ 
+
+# 
 
 Write your answer using **markdown** and $\LaTeX$:
 ```python
