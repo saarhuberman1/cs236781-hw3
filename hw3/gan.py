@@ -301,12 +301,12 @@ def save_checkpoint(gen_model, dsc_losses, gen_losses, checkpoint_file):
         return alpha*dsc + (1-alpha)*gen
 
     if not gen_model.prev_data_loss or not gen_model.prev_KL_loss or \
-            combined_loss(dsc_losses, gen_losses) < combined_loss(gen_model.prev_data_loss, gen_model.prev_KL_loss):
+            combined_loss(dsc_losses[-1], gen_losses[-1]) < combined_loss(gen_model.prev_data_loss, gen_model.prev_KL_loss):
         torch.save(gen_model, checkpoint_file)
         # print(f"*** Saved checkpoint {checkpoint_file} ")
         saved = True
-    gen_model.prev_data_loss = dsc_losses
-    gen_model.prev_KL_loss = gen_losses
+    gen_model.prev_data_loss = dsc_losses[-1]
+    gen_model.prev_KL_loss = gen_losses[-1]
     # raise NotImplementedError()
     # ========================
 

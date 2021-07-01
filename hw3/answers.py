@@ -113,7 +113,7 @@ def part2_vae_hyperparams():
     # TODO: Tweak the hyperparameters to generate a former president.
     # ====== YOUR CODE: ======
     hypers = dict(
-        batch_size=128, h_dim=128, z_dim=256, x_sigma2=1, learn_rate=0.001, betas=(0.9, 0.999),)
+        batch_size=128, h_dim=128, z_dim=256, x_sigma2=0.01, learn_rate=0.001, betas=(0.9, 0.999),)
 
     # raise NotImplementedError()
     # ========================
@@ -121,18 +121,25 @@ def part2_vae_hyperparams():
 
 
 part2_q1 = r"""
-**Your answer:**
 
-$sigma^2$ 
+$\sigma^2$ determines the variance of the normal distribution of the likelihood 
+$p _{\bb{\beta}}(\bb{X} | \bb{Z}=\bb{z}) = \mathcal{N}( \Psi _{\bb{\beta}}(\bb{z}) , \sigma^2 \bb{I} )$.
+Increasing its value will lead to a wider normal distribution 
+which yields more variability in sampling from latent space and generating samples using the decoder,
+meaning we will get samples that may 'look different' from the samples in the dataset.
+On the other hand, decreasing its value will yield a narrower distribution, 
+causing the samples to be more similar to the dataset. 
 
-# 
+This can also be seen as the bias-variance trade-off. High values of $\sigma$ lead to a model with higher variance,
+which is less biased towards the given dataset, where low values will cause the model to be biased in terms of mimicking the given dataset, on account the variance of the model and its ability to generate new realizations of the data.
 
-Write your answer using **markdown** and $\LaTeX$:
-```python
-# A code block
-a = 2
-```
-An equation: $e^{i\pi} -1 = 0$
+Another view of this parameter is it controls to what extent does the data-reconstruction loss effects the total loss, 
+in comparasent with the KL-divergence loss. The larger $\sigma^2$ is, the less effect the data-reconstruction loss has. 
+Meaning 
+
+The above completely agrees with the probability analysis we described at the beginning. 
+
+ 
 
 """
 
@@ -206,16 +213,16 @@ def part3_gan_hyperparams():
     hypers = dict(
         batch_size=128,
         z_dim=256,
-        data_label=0,
-        label_noise=0.2,
+        data_label=1,
+        label_noise=0.3,
         discriminator_optimizer=dict(
             type="Adam",  # Any name in nn.optim like SGD, Adam
-            lr=0.001,
+            lr=0.0005,
             # You an add extra args for the optimizer here
         ),
         generator_optimizer=dict(
             type="Adam",  # Any name in nn.optim like SGD, Adam
-            lr=0.001,
+            lr=0.0005,
             # You an add extra args for the optimizer here
         ),
     )
