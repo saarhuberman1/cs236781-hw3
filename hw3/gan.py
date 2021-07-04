@@ -34,7 +34,7 @@ class Discriminator(nn.Module):
 
         self.cnn = nn.Sequential(*modules)
         n_cnn_features = self._calc_num_cnn_features(in_size)
-        self.fc = nn.Linear(n_cnn_features, 1, bias=True) # TODO - what is the 1 here?
+        self.fc = nn.Linear(n_cnn_features, 1, bias=True)
         # ========================
 
     def _calc_num_cnn_features(self, in_shape):
@@ -114,6 +114,9 @@ class Generator(nn.Module):
                                               stride=(2, 2),
                                               padding=(2, 2),
                                               output_padding=(1, 1)))
+        # modules.append(nn.Tanh())
+        # modules.append(nn.LeakyReLU())
+
         self.generator = nn.Sequential(*modules)
 
 
@@ -193,8 +196,8 @@ def discriminator_loss_fn(y_data, y_generated, data_label=0, label_noise=0.0):
     #  generated labels.
     #  See pytorch's BCEWithLogitsLoss for a numerically stable implementation.
     # ====== YOUR CODE: ======
-    y_data_noise = torch.rand(y_data.shape) * label_noise - label_noise / 2
-    y_generated_noise = torch.rand(y_generated.shape) * label_noise - label_noise / 2
+    y_data_noise = torch.rand(y_data.shape).to(y_data.device) * label_noise - label_noise / 2
+    y_generated_noise = torch.rand(y_generated.shape, device=y_data.device) * label_noise - label_noise / 2
     data_labels = data_label + y_data_noise
     generated_labels = (1-data_label)+y_generated_noise
     criterion = torch.nn.BCEWithLogitsLoss()
@@ -222,7 +225,7 @@ def generator_loss_fn(y_generated, data_label=0):
     #  formulate the loss in terms of Binary Cross Entropy.
     # ====== YOUR CODE: ======
     criterion = torch.nn.BCEWithLogitsLoss()
-    loss = criterion(y_generated, torch.full(y_generated.shape, float(data_label)))
+    loss = criterion(y_generated, torch.full(y_generated.shape, float(data_label),device=y_generated.device))
     # ========================
     return loss
 
@@ -252,7 +255,7 @@ def train_batch(
     generated_data_score = dsc_model(generated_data)
 
     y_data_score = dsc_model(x_data)
-    dsc_loss = dsc_loss_fn(y_data_score, generated_data_score)  # TODO - MARWA - not sure about the label
+    dsc_loss = dsc_loss_fn(y_data_score, generated_data_score)
     dsc_loss.backward()
     dsc_optimizer.step()
 
@@ -296,18 +299,20 @@ def save_checkpoint(gen_model, dsc_losses, gen_losses, checkpoint_file):
     #  You should decide what logic to use for deciding when to save.
     #  If you save, set saved to True.
     # ====== YOUR CODE: ======
-    def combined_loss(dsc,gen):
-        alpha = 0.5
-        return alpha*dsc + (1-alpha)*gen
-
-    if not gen_model.prev_data_loss or not gen_model.prev_KL_loss or \
-            combined_loss(dsc_losses[-1], gen_losses[-1]) < combined_loss(gen_model.prev_data_loss, gen_model.prev_KL_loss):
-        torch.save(gen_model, checkpoint_file)
-        # print(f"*** Saved checkpoint {checkpoint_file} ")
-        saved = True
-    gen_model.prev_data_loss = dsc_losses[-1]
-    gen_model.prev_KL_loss = gen_losses[-1]
+    # def combined_loss(dsc,gen):
+    #     alpha = 0.5
+    #     return alpha*dsc + (1-alpha)*gen
+    #
+    # if not gen_model.prev_data_loss or not gen_model.prev_KL_loss or \
+    #         combined_loss(dsc_losses[-1], gen_losses[-1]) < combined_loss(gen_model.prev_data_loss, gen_model.prev_KL_loss):
+    #     torch.save(gen_model, checkpoint_file)
+    #     # print(f"*** Saved checkpoint {checkpoint_file} ")
+    #     saved = True
+    # gen_model.prev_data_loss = dsc_losses[-1]
+    # gen_model.prev_KL_loss = gen_losses[-1]
     # raise NotImplementedError()
     # ========================
-
+    torch.save(gen_model, checkpoint_file)
+    # print(f"*** Saved checkpoint {checkpoint_file} ")
+    saved = True
     return saved

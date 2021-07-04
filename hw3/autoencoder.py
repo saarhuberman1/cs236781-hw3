@@ -64,7 +64,7 @@ class DecoderCNN(nn.Module):
         modules.append(nn.ConvTranspose2d(in_channels=in_channels,
                                           out_channels=channels[0],
                                           kernel_size=(5, 5),
-                                          padding=(2,2)
+                                          padding=(2, 2)
                                           ))
         for i in range(len(channels) - 1):
             modules.append(nn.BatchNorm2d(num_features=channels[i], eps=1e-6, momentum=0.9))
@@ -136,7 +136,7 @@ class VAE(nn.Module):
         log_sigma2 = self.calc_log_var(h)
         sigma = torch.exp(log_sigma2 * 0.5)
         # print(sigma.shape)
-        reparametrization_trick = torch.randn(mu.size())
+        reparametrization_trick = torch.randn(mu.size(), device=mu.device)
         # print(reparametrization_trick.shape)
 
         z = mu + reparametrization_trick * sigma
